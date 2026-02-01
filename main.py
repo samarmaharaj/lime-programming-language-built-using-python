@@ -3,7 +3,7 @@ from lexer import Lexer
 LEXER_DEBUG: bool = True
 
 if __name__ == "__main__":
-    with open("example.lime", "r") as f:
+    with open("tests/lexer.lime", "r") as f:
         source_code: str = f.read()
 
     if LEXER_DEBUG:

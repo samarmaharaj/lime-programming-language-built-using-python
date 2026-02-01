@@ -10,9 +10,9 @@ class Lexer:
         self.line: int = 1
 
         self.current_char: str | None = None
-        self._read_char()
+        self.__read_char()
 
-    def _read_char(self) -> None:
+    def __read_char(self) -> None:
         if self.read_position >= len(self.source):
             self.current_char = None
         else:
@@ -21,11 +21,11 @@ class Lexer:
         self.position = self.read_position
         self.read_position += 1
 
-    def _skip_whitespace(self) -> Token:
+    def __skip_whitespace(self) -> None:
         while self.current_char in [' ', '\t', '\n', '\r']:
             if self.current_char == '\n':
                 self.line += 1
-            self._read_char()
+            self.__read_char()
 
     def __new_token(self, tt: TokenType, literal: Any) -> Token:
         return Token(type=tt, literal=literal, line=self.line, position=self.position)
@@ -47,7 +47,7 @@ class Lexer:
                 return self.__new_token(TokenType.ILLEGAL, output + self.current_char)
             
             output += self.source[self.position]
-            self._read_char()
+            self.__read_char()
 
             if self.current_char is None:
                 break
@@ -60,7 +60,7 @@ class Lexer:
     def next_token(self) -> Token:
         tok: Token = None
 
-        self._skip_whitespace()
+        self.__skip_whitespace()
 
         match self.current_char:
             case '+':
@@ -91,5 +91,5 @@ class Lexer:
                     tok = self.__new_token(TokenType.ILLEGAL, self.current_char)
 
 
-        self._read_char()
+        self.__read_char()
         return tok
