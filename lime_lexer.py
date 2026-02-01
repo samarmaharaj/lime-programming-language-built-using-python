@@ -1,4 +1,4 @@
-from token import Token, TokenType
+from lime_token import Token, TokenType
 from typing import Any
 
 class Lexer:
