@@ -1,8 +1,10 @@
 from llvmlite import ir
 
 from lime_ast import Node, NodeType, Program, Expression, Statement
-from lime_ast import ExpressionStatement, InfixExpression
-from lime_ast import IntegerLiteral, FloatLiteral
+from lime_ast import ExpressionStatement, InfixExpression, LetStatement
+from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral
+
+from environment import Environment
 
 class Compiler:
     def __init__(self) -> None:
@@ -13,6 +15,7 @@ class Compiler:
 
         self.module: ir.Module = ir.Module("main")
         self.builder: ir.IRBuilder = ir.IRBuilder()
+        self.env: Environment = Environment()
 
     def compile(self, node: Node) -> None:
         match node.type():
@@ -22,6 +25,9 @@ class Compiler:
             # statements
             case NodeType.ExpressionStatement:
                 self.__visit_expression_statement(node)
+
+            case NodeType.LetStatement:
+                self.__visit_let_statement(node)
 
             # Expressions
             case NodeType.InfixExpression:
@@ -49,6 +55,34 @@ class Compiler:
     # region statement visit methods
     def __visit_expression_statement(self, node: ExpressionStatement) -> None:
         self.compile(node.expr)
+
+    def __visit_let_statement(self, node: LetStatement) -> None:
+        name: str = node.name.value
+        value: Expression = node.value
+        value_type: str = node.value_type # TODO: Implement
+
+        value, Type = self.__resolve_value(node = value)
+
+        if self.env.lookup(name) is None:
+            # Define and allocate the Variable
+            ptr = self.builder.alloca(Type)
+
+            # Storing the value to the ptr
+            self.builder.store(value, ptr)
+            
+            # add the variable to the environment
+            self.env.define(name, ptr, Type)
+
+        else: 
+            ptr, old_type = self.env.lookup(name)
+            # If types match, reuse existing pointer
+            if old_type == Type:
+                self.builder.store(value, ptr)
+            else:
+                # Allocate new pointer for different type and update environment
+                ptr = self.builder.alloca(Type)
+                self.builder.store(value, ptr)
+                self.env.define(name, ptr, Type)
     # end region statement visit methods
 
     # region expression visit methods
@@ -100,16 +134,21 @@ class Compiler:
     # end region visit methods
 
     # region helper methods
-    def __resolve_value(self, node: Expression, value_type: str = None) -> tuple[ir.Value, ir.Type]:
+    def __resolve_value(self, node: Expression) -> tuple[ir.Value, ir.Type]:
         match node.type():
             case NodeType.IntegerLiteral:
                 node: IntegerLiteral = node
-                value, Type = node.value, self.type_map["int" if value_type is None else value_type]
+                value, Type = node.value, self.type_map["int"]
                 return ir.Constant(Type, value), Type
             case NodeType.FloatLiteral:
                 node: FloatLiteral = node
-                value, Type = node.value, self.type_map["float" if value_type is None else value_type]
+                value, Type = node.value, self.type_map["float"]
                 return ir.Constant(Type, value), Type
+            
+            case NodeType.IdentifierLiteral:
+                node: IdentifierLiteral = node
+                ptr, Type = self.env.lookup(node.value)
+                return self.builder.load(ptr), Type
 
             # Expression Values
             case NodeType.InfixExpression:

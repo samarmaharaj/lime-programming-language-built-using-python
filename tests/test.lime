@@ -1,0 +1,5 @@
+let a: int = 10;
+lit b: int be 15 rn
+
+let a: float = 10.0;
+lit b: float be 1.5 rn

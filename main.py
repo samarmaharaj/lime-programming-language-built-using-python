@@ -13,7 +13,7 @@ PARSER_DEBUG: bool = False
 COMPILER_DEBUG: bool = True
 
 if __name__ == "__main__":
-    with open("tests/compiler.lime", "r") as f:
+    with open("tests/test.lime", "r") as f:
         source_code: str = f.read()
 
     if LEXER_DEBUG:

@@ -1,4 +1,4 @@
-from lime_token import Token, TokenType
+from lime_token import Token, TokenType, lookup_ident
 from typing import Any
 
 class Lexer:
@@ -32,6 +32,9 @@ class Lexer:
 
     def __is_digit(self, ch: str) -> bool:
         return '0' <= ch <= '9'
+    
+    def __is_letter(self, ch: str) -> bool:
+        return ('a' <= ch <= 'z') or ('A' <= ch <= 'Z') or (ch == '_')
 
     def __read_number_token(self) -> Token:
         start_pos: int = self.position
@@ -56,6 +59,13 @@ class Lexer:
             return self.__new_token(TokenType.INT, int(output))
         else:
             return self.__new_token(TokenType.FLOAT, float(output))
+        
+    def __read_identifier(self) -> str:
+        position = self.position
+        while self.current_char is not None and (self.__is_letter(self.current_char) or self.current_char.isalnum()):
+            self.__read_char()
+
+        return self.source[position:self.position]
 
     def next_token(self) -> Token:
         tok: Token = None
@@ -75,6 +85,10 @@ class Lexer:
                 tok = self.__new_token(TokenType.POWER, self.current_char)
             case '%':
                 tok = self.__new_token(TokenType.MODULO, self.current_char)
+            case '=':
+                tok = self.__new_token(TokenType.EQ, self.current_char)
+            case ':':
+                tok = self.__new_token(TokenType.COLON, self.current_char)
             case ';':
                 tok = self.__new_token(TokenType.SEMICOLON, self.current_char)
             case '(':
@@ -84,7 +98,12 @@ class Lexer:
             case None:
                 tok = self.__new_token(TokenType.EOF, "")
             case _:
-                if self.current_char.isdigit():
+                if self.__is_letter(self.current_char):
+                    literal: str = self.__read_identifier()
+                    tt: TokenType = lookup_ident(literal)
+                    tok = self.__new_token(tt=tt, literal=literal)
+                    return tok
+                elif self.current_char.isdigit():
                     tok = self.__read_number_token()
                     return tok
                 else:
