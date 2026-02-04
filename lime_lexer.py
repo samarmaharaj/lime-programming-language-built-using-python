@@ -21,6 +21,13 @@ class Lexer:
         self.position = self.read_position
         self.read_position += 1
 
+    def __peek_char(self) -> str | None:
+        """ Peeks to the upcoming character without advancing the lexer. """
+        if self.read_position >= len(self.source):
+            return None
+        else:
+            return self.source[self.read_position]
+
     def __skip_whitespace(self) -> None:
         while self.current_char in [' ', '\t', '\n', '\r']:
             if self.current_char == '\n':
@@ -76,7 +83,14 @@ class Lexer:
             case '+':
                 tok = self.__new_token(TokenType.PLUS, self.current_char)
             case '-':
-                tok = self.__new_token(TokenType.MINUS, self.current_char)
+                # handle ->
+                if self.__peek_char() == '>':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.ARROW, literal)
+                else:
+                    tok = self.__new_token(TokenType.MINUS, self.current_char)
             case '*':
                 tok = self.__new_token(TokenType.ASTERISK, self.current_char)
             case '/':
@@ -95,6 +109,10 @@ class Lexer:
                 tok = self.__new_token(TokenType.LPAREN, self.current_char)
             case ')':
                 tok = self.__new_token(TokenType.RPAREN, self.current_char)
+            case '{':
+                tok = self.__new_token(TokenType.LBRACE, self.current_char)
+            case '}':
+                tok = self.__new_token(TokenType.RBRACE, self.current_char)
             case None:
                 tok = self.__new_token(TokenType.EOF, "")
             case _:

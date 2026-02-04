@@ -6,12 +6,10 @@ define i32 @"main"()
 {
 main_entry:
   %".2" = alloca i32
-  store i32 10, i32* %".2"
-  %".4" = alloca i32
-  store i32 15, i32* %".4"
-  %".6" = alloca float
-  store float 0x4024000000000000, float* %".6"
-  %".8" = alloca float
-  store float 0x3ff8000000000000, float* %".8"
-  ret i32 69
+  store i32 4, i32* %".2"
+  %".4" = load i32, i32* %".2"
+  %".5" = mul i32 %".4", 2
+  store i32 %".5", i32* %".2"
+  %".7" = load i32, i32* %".2"
+  ret i32 %".7"
 }

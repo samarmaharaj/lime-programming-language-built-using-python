@@ -4,7 +4,8 @@ from typing import Callable
 from enum import Enum, auto
 
 from lime_ast import Statement, Expression, Program
-from lime_ast import ExpressionStatement
+from lime_ast import ExpressionStatement, FunctionStatement, ReturnStatement, BlockStatement
+from lime_ast import AssignStatement
 from lime_ast import InfixExpression
 from lime_ast import LetStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral
@@ -41,6 +42,7 @@ class Parser:
         self.peek_token: Token = None
 
         self.prefix_parse_fns: dict[TokenType, Callable] = {
+            TokenType.IDENT: self.__parse_identifier,
             TokenType.INT: self.__parse_int_literal,
             TokenType.FLOAT: self.__parse_float_literal,
             TokenType.LPAREN: self.__parse_grouped_expression
@@ -112,9 +114,16 @@ class Parser:
     
     # region statement methods
     def __parse_statement(self) -> Statement:
+        if self.current_token.type == TokenType.IDENT and self.__peek_token_is(TokenType.EQ):
+            return self.__parse_assignment_statement()
+
         match self.current_token.type:
             case TokenType.LET:
                 return self.__parse_let_statement()
+            case TokenType.FN:
+                return self.__parse_function_statement()
+            case TokenType.RETURN:
+                return self.__parse_return_statement()
             case _:
                 return self.__parse_expression_statement()
     
@@ -156,6 +165,79 @@ class Parser:
             self.__next_token()
 
         return stmt
+    
+    def __parse_function_statement(self) -> FunctionStatement:
+        stmt: FunctionStatement = FunctionStatement()
+
+        # fn name() -> int { return 10;}
+        if not self.__expect_peek(TokenType.IDENT):
+            return None
+        
+        stmt.name = IdentifierLiteral(value=self.current_token.literal)
+
+        if not self.__expect_peek(TokenType.LPAREN):
+            return None
+        
+        stmt.parameters = [] # TODO: parse parameters
+        
+        if not self.__expect_peek(TokenType.RPAREN):
+            return None
+        
+        if not self.__expect_peek(TokenType.ARROW):
+            return None
+        
+        if not self.__expect_peek(TokenType.TYPE):
+            return None
+        
+        stmt.return_type = self.current_token.literal
+
+        if not self.__expect_peek(TokenType.LBRACE):
+            return None
+        
+        stmt.body = self.__parse_block_statement()
+
+        return stmt
+
+    def __parse_return_statement(self) -> ReturnStatement:
+        stmt: ReturnStatement = ReturnStatement()
+
+        self.__next_token()
+
+        stmt.return_value = self.__parse_expression(PrecedenceType.P_LOWEST)
+        
+        if not self.__expect_peek(TokenType.SEMICOLON):
+            return None
+        
+        return stmt
+
+
+    def __parse_block_statement(self) -> BlockStatement:
+        block_stmt: BlockStatement = BlockStatement()
+
+        self.__next_token()
+
+        while not self.__current_token_is(TokenType.RBRACE) and not self.__current_token_is(TokenType.EOF):
+            stmt: Statement = self.__parse_statement()
+            if stmt is not None:
+                block_stmt.statements.append(stmt)
+            self.__next_token()
+        
+        return block_stmt
+    
+    def __parse_assignment_statement(self) -> AssignStatement:
+        stmt: AssignStatement = AssignStatement()
+
+        stmt.ident = IdentifierLiteral(value=self.current_token.literal)
+
+        self.__next_token()
+        self.__next_token()
+
+        stmt.right_value = self.__parse_expression(PrecedenceType.P_LOWEST)
+
+        self.__next_token()
+
+        return stmt
+
     # endregion statement methods
 
     # region expression methods
@@ -203,6 +285,9 @@ class Parser:
     # endregion expression methods
 
     # region prefix methods
+    def __parse_identifier(self) -> IdentifierLiteral:
+        return IdentifierLiteral(value=self.current_token.literal)
+
     def __parse_int_literal(self) -> Expression:
         """Parses an integer literal from the current token."""
         int_lit: IntegerLiteral = IntegerLiteral()

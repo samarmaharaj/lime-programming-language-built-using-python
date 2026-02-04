@@ -2,6 +2,7 @@ from llvmlite import ir
 
 from lime_ast import Node, NodeType, Program, Expression, Statement
 from lime_ast import ExpressionStatement, InfixExpression, LetStatement
+from lime_ast import FunctionStatement, ReturnStatement, BlockStatement, AssignStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral
 
 from environment import Environment
@@ -17,6 +18,9 @@ class Compiler:
         self.builder: ir.IRBuilder = ir.IRBuilder()
         self.env: Environment = Environment()
 
+        # temporary keep track of errora
+        self.errors: list[str] = []
+
     def compile(self, node: Node) -> None:
         match node.type():
             case NodeType.Program:
@@ -29,28 +33,40 @@ class Compiler:
             case NodeType.LetStatement:
                 self.__visit_let_statement(node)
 
+            case NodeType.FunctionStatement:
+                self.__visit_function_statement(node)
+
+            case NodeType.BlockStatement:
+                self.__visit_block_statement(node)
+
+            case NodeType.ReturnStatement:
+                self.__visit_return_statement(node)
+            
+            case NodeType.AssignStatement:
+                self.__visit_assign_statement(node)
+
             # Expressions
             case NodeType.InfixExpression:
                 self.__visit_infix_expression(node)
 
-    # region visit methods
+# region visit methods
     def __visit_program(self, node: Program) -> None:
-        func_name: str = "main"
-        param_types: list[ir.Type] = []
-        return_type: ir.Type = self.type_map["int"]
+        # func_name: str = "main"
+        # param_types: list[ir.Type] = []
+        # return_type: ir.Type = self.type_map["int"]
 
-        fnty = ir.FunctionType(return_type, param_types)
-        func = ir.Function(self.module, fnty, name=func_name)
+        # fnty = ir.FunctionType(return_type, param_types)
+        # func = ir.Function(self.module, fnty, name=func_name)
 
-        block = func.append_basic_block(f"{func_name}_entry")
+        # block = func.append_basic_block(f"{func_name}_entry")
 
-        self.builder = ir.IRBuilder(block)
+        # self.builder = ir.IRBuilder(block)
 
         for stmt in node.statements:
             self.compile(stmt)
 
-        return_value: ir.Constant = ir.Constant(self.type_map["int"], 69)
-        self.builder.ret(return_value)
+        # return_value: ir.Constant = ir.Constant(self.type_map["int"], 69)
+        # self.builder.ret(return_value)
 
     # region statement visit methods
     def __visit_expression_statement(self, node: ExpressionStatement) -> None:
@@ -83,6 +99,63 @@ class Compiler:
                 ptr = self.builder.alloca(Type)
                 self.builder.store(value, ptr)
                 self.env.define(name, ptr, Type)
+
+
+    def __visit_block_statement(self, node: BlockStatement) -> None:
+        for stmt in node.statements:
+            self.compile(stmt)
+
+    def __visit_return_statement(self, node: ReturnStatement) -> None:
+        value: Expression = node.return_value
+        value, Type = self.__resolve_value(value)
+        self.builder.ret(value)
+
+    def __visit_function_statement(self, node: FunctionStatement) -> None:
+        name: str = node.name.value
+        body: BlockStatement = node.body
+        params: list[IdentifierLiteral] = node.parameters
+
+        # keep track of the names of each parameter
+        params_names: list[str] = [param.value for param in params]
+
+        # keep track of the types for each parameter
+        params_types: list[ir.Type] = [] # TODO
+
+        return_type: ir.Type = self.type_map[node.return_type]
+
+        fnty: ir.FunctionType = ir.FunctionType(return_type, params_types)
+        func: ir.Function = ir.Function(self.module, fnty, name=name)
+
+        block: ir.Block = func.append_basic_block(f"{name}_entry")
+
+        previous_builder = self.builder
+
+        self.builder = ir.IRBuilder(block)
+
+        previous_env = self.env
+
+        self.env = Environment(parent=self.env)
+        self.env.define(name, func, return_type)
+
+        self.compile(body)
+
+        self.env = previous_env
+        self.env.define(name, func, return_type)
+
+        self.builder = previous_builder
+
+    def __visit_assign_statement(self, node: AssignStatement) -> None:
+        name: str = node.ident.value
+        value: Expression = node.right_value
+
+        value, Type = self.__resolve_value(node = value)
+
+        if self.env.lookup(name) is None:
+            self.errors.append(f"COMPILE ERROR: Identifier {name} has not been declared before it was re-assigned.")
+
+        else:
+            ptr, _ = self.env.lookup(name)
+            self.builder.store(value, ptr)
     # end region statement visit methods
 
     # region expression visit methods
@@ -131,7 +204,7 @@ class Compiler:
     # end region expression visit methods
 
 
-    # end region visit methods
+# end region visit methods
 
     # region helper methods
     def __resolve_value(self, node: Expression) -> tuple[ir.Value, ir.Type]:

@@ -25,11 +25,17 @@ class TokenType(Enum):
     #symbols
     COLON = "COLON"
     SEMICOLON = "SEMICOLON"
+    ARROW = "ARROW"
     LPAREN = "LPAREN"
     RPAREN = "RPAREN"
+    LBRACE = "LBRACE"
+    RBRACE = "RBRACE"
 
     #keywords
     LET = "LET"
+    FN = "FN"
+    RETURN = "RETURN"
+
 
     # typing
     TYPE = "TYPE"
@@ -49,13 +55,18 @@ class Token:
         return str(self)
     
 KEYWORDS: dict[str, TokenType] = {
-    "let": TokenType.LET
+    "let": TokenType.LET,
+    "fn": TokenType.FN,
+    "return": TokenType.RETURN
 }
 
 ALT_KEYWORDS: dict[str, TokenType] = {
     "lit": TokenType.LET,
     "be": TokenType.EQ,
-    "rn": TokenType.SEMICOLON
+    "rn": TokenType.SEMICOLON,
+    "bruh": TokenType.FN,
+    "pause": TokenType.RETURN,
+    "snek": TokenType.ARROW
 }
 
 TYPE_KEYWORDS: list[str] = ["int", "float"]

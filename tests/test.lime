@@ -1,5 +1,11 @@
-let a: int = 10;
-lit b: int be 15 rn
+fn main() -> int {
+    let a: int = 5;
 
-let a: float = 10.0;
-lit b: float be 1.5 rn
+    if a == 5 {
+        a = 69;
+    } else {
+        a = 420;
+    }
+
+    return a;
+}
