@@ -21,26 +21,57 @@
                             },
                             "value": {
                                 "type": "IntegerLiteral",
-                                "value": 4
+                                "value": 5
                             },
                             "value_type": "int"
                         },
                         {
-                            "type": "AssignStatement",
-                            "ident": {
-                                "type": "IdentifierLiteral",
-                                "value": "a"
-                            },
-                            "right_value": {
-                                "type": "InfixExpression",
-                                "left_node": {
-                                    "type": "IdentifierLiteral",
-                                    "value": "a"
+                            "type": "ExpressionStatement",
+                            "expr": {
+                                "type": "IfStatement",
+                                "condition": {
+                                    "type": "InfixExpression",
+                                    "left_node": {
+                                        "type": "IdentifierLiteral",
+                                        "value": "a"
+                                    },
+                                    "operator": "==",
+                                    "right_node": {
+                                        "type": "IntegerLiteral",
+                                        "value": 5
+                                    }
                                 },
-                                "operator": "*",
-                                "right_node": {
-                                    "type": "IntegerLiteral",
-                                    "value": 2
+                                "consequence": {
+                                    "type": "BlockStatement",
+                                    "statements": [
+                                        {
+                                            "type": "AssignStatement",
+                                            "ident": {
+                                                "type": "IdentifierLiteral",
+                                                "value": "a"
+                                            },
+                                            "right_value": {
+                                                "type": "IntegerLiteral",
+                                                "value": 69
+                                            }
+                                        }
+                                    ]
+                                },
+                                "alternative": {
+                                    "type": "BlockStatement",
+                                    "statements": [
+                                        {
+                                            "type": "AssignStatement",
+                                            "ident": {
+                                                "type": "IdentifierLiteral",
+                                                "value": "a"
+                                            },
+                                            "right_value": {
+                                                "type": "IntegerLiteral",
+                                                "value": 420
+                                            }
+                                        }
+                                    ]
                                 }
                             }
                         },

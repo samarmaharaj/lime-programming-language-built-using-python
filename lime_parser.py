@@ -7,8 +7,8 @@ from lime_ast import Statement, Expression, Program
 from lime_ast import ExpressionStatement, FunctionStatement, ReturnStatement, BlockStatement
 from lime_ast import AssignStatement
 from lime_ast import InfixExpression
-from lime_ast import LetStatement
-from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral
+from lime_ast import LetStatement, IfStatement
+from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 
 # precedence Types
 class PrecedenceType(Enum):
@@ -29,7 +29,13 @@ PRECEDENCES: dict[TokenType, PrecedenceType] = {
     TokenType.SLASH: PrecedenceType.P_PRODUCT,
     TokenType.ASTERISK: PrecedenceType.P_PRODUCT,
     TokenType.MODULO: PrecedenceType.P_PRODUCT,
-    TokenType.POWER: PrecedenceType.P_EXPONENT
+    TokenType.POWER: PrecedenceType.P_EXPONENT,
+    TokenType.EQ_EQ: PrecedenceType.P_EQUALS,
+    TokenType.NOT_EQ: PrecedenceType.P_EQUALS,
+    TokenType.LT: PrecedenceType.P_LESSGREATER,
+    TokenType.GT: PrecedenceType.P_LESSGREATER,
+    TokenType.LT_EQ: PrecedenceType.P_LESSGREATER,
+    TokenType.GT_EQ: PrecedenceType.P_LESSGREATER
 }
 
 class Parser:
@@ -45,7 +51,10 @@ class Parser:
             TokenType.IDENT: self.__parse_identifier,
             TokenType.INT: self.__parse_int_literal,
             TokenType.FLOAT: self.__parse_float_literal,
-            TokenType.LPAREN: self.__parse_grouped_expression
+            TokenType.LPAREN: self.__parse_grouped_expression,
+            TokenType.IF: self.__parse_if_expression,
+            TokenType.TRUE: self.__parse_boolean,
+            TokenType.FALSE: self.__parse_boolean
         }
         self.infix_parse_fns: dict[TokenType, Callable] = {
             TokenType.PLUS: self.__parse_infix_expression,
@@ -53,7 +62,13 @@ class Parser:
             TokenType.SLASH: self.__parse_infix_expression,
             TokenType.ASTERISK: self.__parse_infix_expression,
             TokenType.POWER: self.__parse_infix_expression,
-            TokenType.MODULO: self.__parse_infix_expression
+            TokenType.MODULO: self.__parse_infix_expression,
+            TokenType.EQ_EQ: self.__parse_infix_expression,
+            TokenType.NOT_EQ: self.__parse_infix_expression,
+            TokenType.LT: self.__parse_infix_expression,
+            TokenType.GT: self.__parse_infix_expression,
+            TokenType.LT_EQ: self.__parse_infix_expression,
+            TokenType.GT_EQ: self.__parse_infix_expression
         }
 
         self.__next_token()
@@ -238,6 +253,29 @@ class Parser:
 
         return stmt
 
+    def __parse_if_expression(self) -> IfStatement:
+        condition: Expression = None
+        consequence: BlockStatement = None
+        alternative: BlockStatement = None
+
+        self.__next_token()
+
+        condition = self.__parse_expression(PrecedenceType.P_LOWEST)
+
+        if not self.__expect_peek(TokenType.LBRACE):
+            return None
+        
+        consequence = self.__parse_block_statement()
+
+        if self.__peek_token_is(TokenType.ELSE):
+            self.__next_token()
+
+            if not self.__expect_peek(TokenType.LBRACE):
+                return None
+            
+            alternative = self.__parse_block_statement()
+
+        return IfStatement(condition, consequence, alternative)
     # endregion statement methods
 
     # region expression methods
@@ -312,4 +350,6 @@ class Parser:
         
         return float_lit
         
+    def __parse_boolean(self) -> BooleanLiteral:
+        return BooleanLiteral(value=self.__current_token_is(TokenType.TRUE))
     # endregion prefix methods
