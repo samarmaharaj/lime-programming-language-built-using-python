@@ -1,0 +1,7 @@
+bruh test() -> int {
+    pause 69 rn
+}
+
+fn main() -> int {
+    return test();
+}

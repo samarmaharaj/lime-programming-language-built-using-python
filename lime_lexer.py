@@ -138,6 +138,8 @@ class Lexer:
                     tok = self.__new_token(TokenType.ILLEGAL, self.current_char)
             case ':':
                 tok = self.__new_token(TokenType.COLON, self.current_char)
+            case ',':
+                tok = self.__new_token(TokenType.COMMA, self.current_char)
             case ';':
                 tok = self.__new_token(TokenType.SEMICOLON, self.current_char)
             case '(':

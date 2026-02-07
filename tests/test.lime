@@ -1,11 +1,13 @@
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+bruh sub(a: int, b: int) -> int {
+    return a - b rn
+}
+
 fn main() -> int {
-    let a: int = 6;
-
-    if a == 5 {
-        a = 69;
-    } else {
-        a = 420;
-    }
-
-    return a;
+    let a: int = add(1, 2);
+    let b: int = sub(1, 2);
+    return a - b;
 }

@@ -32,6 +32,7 @@ class TokenType(Enum):
 
     #symbols
     COLON = "COLON"
+    COMMA = "COMMA"
     SEMICOLON = "SEMICOLON"
     ARROW = "ARROW"
     LPAREN = "LPAREN"

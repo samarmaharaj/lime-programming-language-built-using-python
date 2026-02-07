@@ -15,12 +15,16 @@ class NodeType(Enum):
 
     #expressions
     InfixExpression = "InfixExpression"
+    CallExpression = "CallExpression"
 
     #Literals
     IntegerLiteral = "IntegerLiteral"
     FloatLiteral = "FloatLiteral"
     IdentifierLiteral = "IdentifierLiteral"
     BooleanLiteral = "BooleanLiteral"
+
+    # Helpers
+    FunctionParameter = "FunctionParameter"
 
 class Node(ABC):
     @abstractmethod
@@ -49,6 +53,23 @@ class Program(Node):
             "type": self.type().value,
             "statements": [{stmt.type().value: stmt.json()} for stmt in self.statements]
         }
+    
+# region helpers
+class FunctionParameter(Expression):
+    def __init__(self, name: str, value_type: str = None) -> None:
+        self.name = name
+        self.value_type = value_type
+
+    def type(self) -> NodeType:
+        return NodeType.FunctionParameter
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "name": self.name,
+            "value_type": self.value_type
+        }
+# endregion helpers
     
 # region statements
 class ExpressionStatement(Statement):
@@ -108,8 +129,8 @@ class ReturnStatement(Statement):
         }
 
 class FunctionStatement(Statement):
-    def __init__(self, parameters: list = [], body: BlockStatement = None, name = None, return_type: str = None) -> None:
-        self.parameters: list = parameters
+    def __init__(self, parameters: list[FunctionParameter] = [], body: BlockStatement = None, name = None, return_type: str = None) -> None:
+        self.parameters = parameters
         self.body = body
         self.name = name
         self.return_type = return_type
@@ -157,7 +178,7 @@ class IfStatement(Statement):
             "consequence": self.consequence.json(),
             "alternative": self.alternative.json() if self.alternative is not None else None
         }
-#end region statements
+# end region statements
 
 # region expressions
 class InfixExpression(Expression):
@@ -175,6 +196,21 @@ class InfixExpression(Expression):
             "left_node": self.left_node.json(),
             "operator": self.operator,
             "right_node": self.right_node.json()
+        }
+    
+class CallExpression(Expression):
+    def __init__(self, function: Expression = None, arguments: list[Expression] = None) -> None:
+        self.function = function # IdentifierLiteral
+        self.arguments = arguments
+
+    def type(self) -> NodeType:
+        return NodeType.CallExpression
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "function": self.function.json(),
+            "arguments": [arg.json() for arg in self.arguments]
         }
 # end region expressions
 

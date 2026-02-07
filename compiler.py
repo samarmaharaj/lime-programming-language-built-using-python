@@ -1,9 +1,10 @@
 from llvmlite import ir
 
 from lime_ast import Node, NodeType, Program, Expression, Statement
-from lime_ast import ExpressionStatement, InfixExpression, LetStatement
+from lime_ast import ExpressionStatement, InfixExpression, LetStatement, CallExpression
 from lime_ast import FunctionStatement, ReturnStatement, BlockStatement, AssignStatement, IfStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
+from lime_ast import FunctionParameter
 
 from environment import Environment
 
@@ -74,6 +75,8 @@ class Compiler:
             # Expressions
             case NodeType.InfixExpression:
                 self.__visit_infix_expression(node)
+            case NodeType.CallExpression:
+                self.__visit_call_expression(node)
 
 # region visit methods
     def __visit_program(self, node: Program) -> None:
@@ -139,13 +142,13 @@ class Compiler:
     def __visit_function_statement(self, node: FunctionStatement) -> None:
         name: str = node.name.value
         body: BlockStatement = node.body
-        params: list[IdentifierLiteral] = node.parameters
+        params: list[FunctionParameter] = node.parameters
 
         # keep track of the names of each parameter
-        params_names: list[str] = [param.value for param in params]
+        params_names: list[str] = [param.name for param in params]
 
         # keep track of the types for each parameter
-        params_types: list[ir.Type] = [] # TODO
+        params_types: list[ir.Type] = [self.type_map[param.value_type] for param in params]
 
         return_type: ir.Type = self.type_map[node.return_type]
 
@@ -158,9 +161,23 @@ class Compiler:
 
         self.builder = ir.IRBuilder(block)
 
-        previous_env = self.env
+        # staring the pointers to each parameter
+        params_ptr = []
+        for i, typ in enumerate(params_types):
+            ptr = self.builder.alloca(typ)
+            self.builder.store(func.args[i], ptr)
+            params_ptr.append(ptr)
 
-        self.env = Environment(parent=self.env)
+
+        # adding the parameters to the environment
+        previous_env = self.env
+        self.env = Environment(parent=previous_env)
+        for i, x in enumerate(zip(params_types, params_names)):
+            typ = params_types[i]
+            ptr = params_ptr[i]
+
+            self.env.define(x[1], ptr, typ)
+
         self.env.define(name, func, return_type)
 
         self.compile(body)
@@ -289,6 +306,25 @@ class Compiler:
                     Type = ir.IntType(1)
 
         return value, Type
+    
+    def __visit_call_expression(self, node: CallExpression) -> tuple[ir.Instruction, ir.Type]:
+        name: str = node.function.value
+        params: list[Expression] = node.arguments
+
+        args = []
+        types = []
+
+        if len(params) > 0:
+            for x in params:
+                p_val, p_type = self.__resolve_value(x)
+                args.append(p_val)
+                types.append(p_type)
+        match name:
+            case _:
+                func, ret_type = self.env.lookup(name)
+                ret = self.builder.call(func, args)
+
+        return ret, ret_type
     # end region expression visit methods
 
 
@@ -321,5 +357,7 @@ class Compiler:
             # Expression Values
             case NodeType.InfixExpression:
                 return self.__visit_infix_expression(node) 
+            case NodeType.CallExpression:
+                return self.__visit_call_expression(node)
 
     # end region helper methods

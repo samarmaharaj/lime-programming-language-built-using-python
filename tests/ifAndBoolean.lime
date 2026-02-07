@@ -1,0 +1,11 @@
+fn main() -> int {
+    let a: int = 6;
+
+    if a == 5 {
+        a = 69;
+    } else {
+        a = 420;
+    }
+
+    return a;
+}
