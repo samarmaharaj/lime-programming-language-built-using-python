@@ -11,6 +11,7 @@ from lime_ast import CallExpression
 from lime_ast import LetStatement, IfStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 from lime_ast import FunctionParameter
+from lime_ast import StringLiteral
 
 # precedence Types
 class PrecedenceType(Enum):
@@ -57,7 +58,9 @@ class Parser:
             TokenType.LPAREN: self.__parse_grouped_expression,
             TokenType.IF: self.__parse_if_expression,
             TokenType.TRUE: self.__parse_boolean,
-            TokenType.FALSE: self.__parse_boolean
+            TokenType.FALSE: self.__parse_boolean,
+
+            TokenType.STRING: self.__parse_string_literal
         }
         self.infix_parse_fns: dict[TokenType, Callable] = {
             TokenType.PLUS: self.__parse_infix_expression,
@@ -418,4 +421,7 @@ class Parser:
         
     def __parse_boolean(self) -> BooleanLiteral:
         return BooleanLiteral(value=self.__current_token_is(TokenType.TRUE))
+    
+    def __parse_string_literal(self) -> StringLiteral:
+        return StringLiteral(value=self.current_token.literal)
     # endregion prefix methods

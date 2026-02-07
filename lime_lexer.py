@@ -140,6 +140,8 @@ class Lexer:
                 tok = self.__new_token(TokenType.COLON, self.current_char)
             case ',':
                 tok = self.__new_token(TokenType.COMMA, self.current_char)
+            case '"':
+                tok = self.__new_token(TokenType.STRING, self.__read_string())
             case ';':
                 tok = self.__new_token(TokenType.SEMICOLON, self.current_char)
             case '(':
@@ -167,3 +169,10 @@ class Lexer:
 
         self.__read_char()
         return tok
+    
+    def __read_string(self) -> str:
+        position: int = self.position + 1
+        while True:
+            self.__read_char()
+            if self.current_char == '"' or self.current_char is None:
+                break

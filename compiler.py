@@ -5,6 +5,7 @@ from lime_ast import ExpressionStatement, InfixExpression, LetStatement, CallExp
 from lime_ast import FunctionStatement, ReturnStatement, BlockStatement, AssignStatement, IfStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 from lime_ast import FunctionParameter
+from lime_ast import StringLiteral
 
 from environment import Environment
 
@@ -13,12 +14,15 @@ class Compiler:
         self.type_map: dict[str, ir.Type] = {
             "int": ir.IntType(32),
             "float": ir.FloatType(),
-            "bool": ir.IntType(1)
+            "bool": ir.IntType(1),
+            "str": ir.PointerType(ir.IntType(8)),
+            "void": ir.VoidType()
         }
 
         self.module: ir.Module = ir.Module("main")
         self.builder: ir.IRBuilder = ir.IRBuilder()
         self.env: Environment = Environment()
+        self.counter: int = 0
 
         # temporary keep track of errora
         self.errors: list[str] = []
@@ -26,6 +30,14 @@ class Compiler:
         self.__initialize_builtins()
 
     def __initialize_builtins(self) -> None:
+        def __init_print() -> ir.Function:
+            fnty: ir.FunctionType = ir.FunctionType(
+                self.type_map['int'],
+                [ir.IntType(8).as_pointer()],
+                var_arg=True
+            )
+            return ir.Function(self.module, fnty, name="printf")
+
         def __init_booleans() -> tuple[ir.GlobalVariable, ir.GlobalVariable]:
             bool_type: ir.Type = self.type_map["bool"]
 
@@ -41,6 +53,8 @@ class Compiler:
 
             return true_global, false_global
         
+        self.env.define("printf", __init_print(), ir.IntType(32))
+
         true_global, false_global = __init_booleans()
         self.env.define("true", true_global, self.type_map["bool"])
         self.env.define("false", false_global, self.type_map["bool"])
@@ -320,6 +334,9 @@ class Compiler:
                 args.append(p_val)
                 types.append(p_type)
         match name:
+            case "printf":
+                ret = self.builtin_printf(params=args, return_type=types[0])
+                ret_type = self.type_map["int"]
             case _:
                 func, ret_type = self.env.lookup(name)
                 ret = self.builder.call(func, args)
@@ -353,11 +370,63 @@ class Compiler:
                 value = 1 if node.value else 0
                 Type = ir.IntType(1)
                 return ir.Constant(Type, value), Type
+            
+            case NodeType.StringLiteral:
+                node: StringLiteral = node
+                string, Type = self.__convert_string(node.value)
+                return string, Type
 
             # Expression Values
             case NodeType.InfixExpression:
                 return self.__visit_infix_expression(node) 
             case NodeType.CallExpression:
                 return self.__visit_call_expression(node)
+
+
+    def __convert_string(self, string: str) -> tuple[ir.Constant, ir.ArrayType]:
+        if string is None:
+            string = ""
+        
+        string = string.replace("\\n", "\n\0")
+
+        fmt : str = f"{string}\0"
+        c_fmt: ir.Constant = ir.Constant(ir.ArrayType(ir.IntType(8), len(fmt)), bytearray(fmt.encode("utf8")))
+
+        global_fmt = ir.GlobalVariable(self.module, c_fmt.type, name=f"__str_{self.__increment_counter()}")
+        global_fmt.linkage = 'internal'
+        global_fmt.global_constant = True
+        global_fmt.initializer = c_fmt
+        
+        return global_fmt, global_fmt.type
+
+    def __increment_counter(self) -> int:
+        self.counter += 1
+        return self.counter
+
+    def builtin_printf(self, params: list[ir.Instruction], return_type: ir.Type) -> None:
+        """Basic C builtin printf function. Takes in a list of parameters and the return type, and returns the result of calling printf with the given parameters."""
+        func, _ = self.env.lookup("printf")
+        
+        c_str = self.builder.alloca(return_type)
+        self.builder.store(params[0], c_str)
+
+        rest_params = params[1:]
+
+        if isinstance(params[0], ir.LoadInstr):
+            """ Printing from a variable load instruction"""
+            # let a: str = "Hello, World!"
+            # printf(a)
+            c_fmt: ir.LoadInstr = params[0]
+            g_var_ptr = c_fmt.operands[0]
+            string_val = self.builder.load(g_var_ptr)
+            fmt_arg = self.builder.bitcast(string_val, ir.IntType(8).as_pointer())
+            return self.builder.call(func, [fmt_arg, *rest_params])
+        else:
+            """ Printing from a normal string declared within printf """
+            # printf("yeet %i", 23)
+            # TODO: Handle PRINTING FLOATS
+            fmt_arg = self.builder.bitcast(params[0], ir.IntType(8).as_pointer())
+
+            return self.builder.call(func, [fmt_arg, *rest_params])
 
     # end region helper methods
