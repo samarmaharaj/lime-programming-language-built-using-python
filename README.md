@@ -303,9 +303,9 @@ Lime leverages LLVM for high-performance compilation:
 - **Contributors**: Everyone who has contributed to this project
 
 <div align="center">
-<div align="center">
-    **Built with 💚 and guided by [CodeDucker](https://youtube.com/playlist?list=PLCJHRjnsxJFoK8e-RaNZUa7R4BaPqczHX)**
+    Built with 💚 and guided by [CodeDucker]()
 
     Made by passionate developers for the programming community
-</div>
+
+    **Learn More**: [Watch Lime Programming Language Playlist](https://youtube.com/playlist?list=PLCJHRjnsxJFoK8e-RaNZUa7R4BaPqczHX)
 </div>
