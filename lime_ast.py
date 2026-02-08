@@ -12,6 +12,10 @@ class NodeType(Enum):
     ReturnStatement = "ReturnStatement"
     AssignStatement = "AssignStatement"
     IfStatement = "IfStatement"
+    WhileStatement = "WhileStatement"
+    BreakStatement = "BreakStatement"
+    ContinueStatement = "ContinueStatement"
+    ForStatement = "ForStatement"
 
     #expressions
     InfixExpression = "InfixExpression"
@@ -178,6 +182,63 @@ class IfStatement(Statement):
             "condition": self.condition.json(),
             "consequence": self.consequence.json(),
             "alternative": self.alternative.json() if self.alternative is not None else None
+        }
+    
+class BreakStatement(Statement):
+    def __init__(self) -> None:
+        pass
+
+    def type(self) -> NodeType:
+        return NodeType.BreakStatement
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value
+        }
+    
+class ContinueStatement(Statement):
+    def __init__(self) -> None:
+        pass
+
+    def type(self) -> NodeType:
+        return NodeType.ContinueStatement
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value
+        }
+    
+class ForStatement(Statement):
+    def __init__(self, initializer: LetStatement = None, condition: Expression = None, increment: AssignStatement = None, body: BlockStatement = None) -> None:
+        self.initializer = initializer
+        self.condition = condition
+        self.increment = increment
+        self.body = body
+
+    def type(self) -> NodeType:
+        return NodeType.ForStatement
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "initializer": self.initializer.json(),
+            "condition": self.condition.json(),
+            "increment": self.increment.json(),
+            "body": self.body.json()
+        }
+class WhileStatement(Statement):
+    def __init__(self, condition: Expression, body: BlockStatement = None) -> None:
+        self.condition = condition
+        self.body = body
+
+    def type(self) -> NodeType:
+        return NodeType.WhileStatement
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "condition": self.condition.json(),
+            "body": self.body.json()
         }
 # end region statements
 

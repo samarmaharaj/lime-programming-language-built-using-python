@@ -6,6 +6,7 @@ from lime_ast import FunctionStatement, ReturnStatement, BlockStatement, AssignS
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 from lime_ast import FunctionParameter
 from lime_ast import StringLiteral
+from lime_ast import WhileStatement, BreakStatement, ContinueStatement, ForStatement
 
 from environment import Environment
 
@@ -28,6 +29,11 @@ class Compiler:
         self.errors: list[str] = []
 
         self.__initialize_builtins()
+
+        # keeps a reference to the compiling Loop blocks
+        self.breakpoints: list[ir.Block] = []
+        self.continues: list[ir.Block] = []
+
 
     def __initialize_builtins(self) -> None:
         def __init_print() -> ir.Function:
@@ -85,6 +91,19 @@ class Compiler:
 
             case NodeType.IfStatement:
                 self.__visit_if_statement(node)
+
+            case NodeType.WhileStatement:
+                self.__visit_while_statement(node)
+
+            case NodeType.BreakStatement:
+                self.__visit_break_statement(node) 
+
+            case NodeType.ContinueStatement:
+                self.__visit_continue_statement(node)
+
+            case NodeType.ForStatement:
+                self.__visit_for_statement(node)
+
 
             # Expressions
             case NodeType.InfixExpression:
@@ -237,6 +256,87 @@ class Compiler:
                     self.compile(consequence)
                 with otherwise:
                     self.compile(alternative)
+
+    def __visit_while_statement(self, node: WhileStatement) -> None:
+        condition: Expression = node.condition
+        body: BlockStatement = node.body
+
+        while_loop_condition = self.builder.append_basic_block(f"while_loop_condition_{self.__increment_counter()}")
+        while_loop_body = self.builder.append_basic_block(f"while_loop_body_{self.counter}")
+        while_loop_end = self.builder.append_basic_block(f"while_loop_end_{self.counter}")
+
+        self.breakpoints.append(while_loop_end)
+        self.continues.append(while_loop_condition)
+
+        # Jump to condition check
+        self.builder.branch(while_loop_condition)
+        
+        # Condition check block
+        self.builder.position_at_start(while_loop_condition)
+        test, _ = self.__resolve_value(condition)
+        self.builder.cbranch(test, while_loop_body, while_loop_end)
+
+        # Loop body block
+        self.builder.position_at_start(while_loop_body)
+        self.compile(body)
+        self.builder.branch(while_loop_condition)
+
+        # End block
+        self.builder.position_at_start(while_loop_end)
+        
+        self.breakpoints.pop()
+        self.continues.pop()
+
+    def __visit_break_statement(self, node: BreakStatement) -> None:
+        self.builder.branch(self.breakpoints[-1])
+
+    def __visit_continue_statement(self, node: ContinueStatement) -> None:
+        self.builder.branch(self.continues[-1])
+
+    def __visit_for_statement(self, node: ForStatement) -> None:
+        # for (let i: int = 0; i < 10; i = i + 1) { ... }
+        initializer: LetStatement = node.initializer
+        condition: Expression = node.condition
+        increment: AssignStatement = node.increment
+        body: BlockStatement = node.body
+
+        previous_env = self.env
+        self.env = Environment(parent=previous_env)
+
+        self.compile(initializer)
+
+        for_loop_condition = self.builder.append_basic_block(f"for_loop_condition_{self.__increment_counter()}")
+        for_loop_body = self.builder.append_basic_block(f"for_loop_body_{self.counter}")
+        for_loop_increment = self.builder.append_basic_block(f"for_loop_increment_{self.counter}")
+        for_loop_end = self.builder.append_basic_block(f"for_loop_end_{self.counter}")
+
+        self.breakpoints.append(for_loop_end)
+        self.continues.append(for_loop_increment)
+
+        # Jump to condition check
+        self.builder.branch(for_loop_condition)
+        
+        # Condition check block
+        self.builder.position_at_start(for_loop_condition)
+        test, _ = self.__resolve_value(condition)
+        self.builder.cbranch(test, for_loop_body, for_loop_end)
+
+        # Loop body block
+        self.builder.position_at_start(for_loop_body)
+        self.compile(body)
+        self.builder.branch(for_loop_increment)
+
+        # Increment block (continue point)
+        self.builder.position_at_start(for_loop_increment)
+        self.compile(increment)
+        self.builder.branch(for_loop_condition)
+
+        # End block
+        self.builder.position_at_start(for_loop_end)
+
+        self.env = previous_env
+        self.breakpoints.pop()
+        self.continues.pop()
 
     # end region statement visit methods
 

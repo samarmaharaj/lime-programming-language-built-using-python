@@ -5,7 +5,7 @@ from enum import Enum, auto
 
 from lime_ast import Statement, Expression, Program
 from lime_ast import ExpressionStatement, FunctionStatement, ReturnStatement, BlockStatement
-from lime_ast import AssignStatement
+from lime_ast import AssignStatement,  WhileStatement, BreakStatement, ContinueStatement, ForStatement
 from lime_ast import InfixExpression
 from lime_ast import CallExpression
 from lime_ast import LetStatement, IfStatement
@@ -137,15 +137,31 @@ class Parser:
     # region statement methods
     def __parse_statement(self) -> Statement:
         if self.current_token.type == TokenType.IDENT and self.__peek_token_is(TokenType.EQ):
-            return self.__parse_assignment_statement()
+            stmt = self.__parse_assignment_statement()
+            # Handle semicolon for assignment statements in statement context
+            if self.__peek_token_is(TokenType.SEMICOLON):
+                self.__next_token()
+            return stmt
 
         match self.current_token.type:
             case TokenType.LET:
-                return self.__parse_let_statement()
+                stmt = self.__parse_let_statement()
+                # Handle semicolon for let statements in statement context
+                if self.__peek_token_is(TokenType.SEMICOLON):
+                    self.__next_token()
+                return stmt
             case TokenType.FN:
                 return self.__parse_function_statement()
             case TokenType.RETURN:
                 return self.__parse_return_statement()
+            case TokenType.WHILE:
+                return self.__parse_while_statement()
+            case TokenType.BREAK:
+                return self.__parse_break_statement()
+            case TokenType.CONTINUE:
+                return self.__parse_continue_statement()
+            case TokenType.FOR:
+                return self.__parse_for_statement()
             case _:
                 return self.__parse_expression_statement()
     
@@ -183,9 +199,7 @@ class Parser:
 
         stmt.value = self.__parse_expression(PrecedenceType.P_LOWEST)
 
-        while not self.__current_token_is(TokenType.SEMICOLON) and not self.__current_token_is(TokenType.EOF):
-            self.__next_token()
-
+        # Don't automatically consume semicolon - let the caller handle it
         return stmt
     
     def __parse_function_statement(self) -> FunctionStatement:
@@ -287,13 +301,14 @@ class Parser:
 
         stmt.ident = IdentifierLiteral(value=self.current_token.literal)
 
-        self.__next_token()
+        if not self.__expect_peek(TokenType.EQ):
+            return None
+        
         self.__next_token()
 
         stmt.right_value = self.__parse_expression(PrecedenceType.P_LOWEST)
 
-        self.__next_token()
-
+        # Don't automatically consume semicolon - let the caller handle it
         return stmt
 
     def __parse_if_expression(self) -> IfStatement:
@@ -319,6 +334,66 @@ class Parser:
             alternative = self.__parse_block_statement()
 
         return IfStatement(condition, consequence, alternative)
+    
+    def __parse_while_statement(self) -> WhileStatement:
+        condition: Expression = None
+        body: BlockStatement = None
+
+        self.__next_token()
+
+        condition = self.__parse_expression(PrecedenceType.P_LOWEST)
+
+        if not self.__expect_peek(TokenType.LBRACE):
+            return None
+        
+        body = self.__parse_block_statement()
+
+        return WhileStatement(condition=condition, body=body)
+    
+    def __parse_break_statement(self) -> BreakStatement:
+        if self.__peek_token_is(TokenType.SEMICOLON):
+            self.__next_token()
+        return BreakStatement()
+    
+    def __parse_continue_statement(self) -> ContinueStatement:
+        if self.__peek_token_is(TokenType.SEMICOLON):
+            self.__next_token()
+        return ContinueStatement()
+    
+    def __parse_for_statement(self) -> ForStatement:
+        stmt: ForStatement = ForStatement()
+
+        if not self.__expect_peek(TokenType.LPAREN):
+            return None
+        
+        if not self.__expect_peek(TokenType.LET):
+            return None
+        
+        stmt.initializer = self.__parse_let_statement()
+
+        if not self.__expect_peek(TokenType.SEMICOLON):
+            return None
+        
+        self.__next_token()
+
+        stmt.condition = self.__parse_expression(PrecedenceType.P_LOWEST)
+
+        if not self.__expect_peek(TokenType.SEMICOLON):
+            return None
+        
+        self.__next_token()
+        
+        stmt.increment = self.__parse_assignment_statement()
+
+        if not self.__expect_peek(TokenType.RPAREN):
+            return None
+
+        if not self.__expect_peek(TokenType.LBRACE):
+            return None
+
+        stmt.body = self.__parse_block_statement()
+
+        return stmt
     # endregion statement methods
 
     # region expression methods

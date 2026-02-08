@@ -176,3 +176,5 @@ class Lexer:
             self.__read_char()
             if self.current_char == '"' or self.current_char is None:
                 break
+
+        return self.source[position:self.position]
