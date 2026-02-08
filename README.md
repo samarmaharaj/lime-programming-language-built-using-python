@@ -302,22 +302,7 @@ Lime leverages LLVM for high-performance compilation:
 - **Python Community**: For the excellent development ecosystem  
 - **Contributors**: Everyone who has contributed to this project
 
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🔗 Links
-
-- **Documentation**: [Wiki](https://github.com/yourusername/lime-programming-language/wiki)
-- **Examples**: [Browse Tests](tests/)
-- **Issues**: [Report Bugs](https://github.com/yourusername/lime-programming-language/issues)
-- **Discussions**: [Community Forum](https://github.com/yourusername/lime-programming-language/discussions)
-
----
-
 <div align="center">
-  <strong>Built with 💚 and lots of ☕</strong><br>
+  <strong>Built with 💚 and guide from [CodeDucker](https://youtube.com/playlist?list=PLCJHRjnsxJFoK8e-RaNZUa7R4BaPqczHX)</strong><br>
   Made by passionate developers for the programming community
 </div>
