@@ -7,8 +7,8 @@ from lime_ast import Statement, Expression, Program
 from lime_ast import ExpressionStatement, FunctionStatement, ReturnStatement, BlockStatement
 from lime_ast import AssignStatement,  WhileStatement, BreakStatement, ContinueStatement, ForStatement
 from lime_ast import InfixExpression
-from lime_ast import CallExpression
-from lime_ast import LetStatement, IfStatement
+from lime_ast import CallExpression, PrefixExpression, PostfixExpression
+from lime_ast import LetStatement, IfStatement, ImportStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 from lime_ast import FunctionParameter
 from lime_ast import StringLiteral
@@ -39,7 +39,10 @@ PRECEDENCES: dict[TokenType, PrecedenceType] = {
     TokenType.GT: PrecedenceType.P_LESSGREATER,
     TokenType.LT_EQ: PrecedenceType.P_LESSGREATER,
     TokenType.GT_EQ: PrecedenceType.P_LESSGREATER,
-    TokenType.LPAREN: PrecedenceType.P_CALL
+    TokenType.LPAREN: PrecedenceType.P_CALL,
+
+    TokenType.PLUS_PLUS: PrecedenceType.P_INDEX,
+    TokenType.MINUS_MINUS: PrecedenceType.P_INDEX
 }
 
 class Parser:
@@ -60,7 +63,10 @@ class Parser:
             TokenType.TRUE: self.__parse_boolean,
             TokenType.FALSE: self.__parse_boolean,
 
-            TokenType.STRING: self.__parse_string_literal
+            TokenType.STRING: self.__parse_string_literal,
+
+            TokenType.BANG: self.__parse_prefix_expression,
+            TokenType.MINUS: self.__parse_prefix_expression
         }
         self.infix_parse_fns: dict[TokenType, Callable] = {
             TokenType.PLUS: self.__parse_infix_expression,
@@ -75,7 +81,10 @@ class Parser:
             TokenType.GT: self.__parse_infix_expression,
             TokenType.LT_EQ: self.__parse_infix_expression,
             TokenType.GT_EQ: self.__parse_infix_expression,
-            TokenType.LPAREN: self.__parse_call_expression
+            TokenType.LPAREN: self.__parse_call_expression,
+
+            TokenType.PLUS_PLUS: self.__parse_postfix_expression,
+            TokenType.MINUS_MINUS: self.__parse_postfix_expression
         }
 
         self.__next_token()
@@ -91,6 +100,17 @@ class Parser:
 
     def __peek_token_is(self, tt: TokenType) -> bool:
         return self.peek_token.type == tt
+    
+    def __peek_token_is_assignment(self) -> bool:
+        assignment_operators: list[TokenType] = [
+            TokenType.EQ,
+            TokenType.PLUS_EQ,
+            TokenType.MINUS_EQ,
+            TokenType.MUL_EQ,
+            TokenType.DIV_EQ
+        ]
+
+        return self.peek_token.type in assignment_operators
     
     def __expect_peek(self, tt: TokenType) -> bool:
         if self.__peek_token_is(tt):
@@ -136,7 +156,7 @@ class Parser:
     
     # region statement methods
     def __parse_statement(self) -> Statement:
-        if self.current_token.type == TokenType.IDENT and self.__peek_token_is(TokenType.EQ):
+        if self.current_token.type == TokenType.IDENT and self.__peek_token_is_assignment():
             stmt = self.__parse_assignment_statement()
             # Handle semicolon for assignment statements in statement context
             if self.__peek_token_is(TokenType.SEMICOLON):
@@ -162,6 +182,8 @@ class Parser:
                 return self.__parse_continue_statement()
             case TokenType.FOR:
                 return self.__parse_for_statement()
+            case TokenType.IMPORT:
+                return self.__parse_import_statement()
             case _:
                 return self.__parse_expression_statement()
     
@@ -301,10 +323,14 @@ class Parser:
 
         stmt.ident = IdentifierLiteral(value=self.current_token.literal)
 
-        if not self.__expect_peek(TokenType.EQ):
+        # Check for any assignment operator
+        if not self.__peek_token_is_assignment():
             return None
         
-        self.__next_token()
+        self.__next_token()  # Move to the assignment operator
+        stmt.operator = self.current_token.literal
+        
+        self.__next_token()  # Move to the right-hand side
 
         stmt.right_value = self.__parse_expression(PrecedenceType.P_LOWEST)
 
@@ -383,7 +409,7 @@ class Parser:
         
         self.__next_token()
         
-        stmt.increment = self.__parse_assignment_statement()
+        stmt.increment = self.__parse_expression(PrecedenceType.P_LOWEST)
 
         if not self.__expect_peek(TokenType.RPAREN):
             return None
@@ -393,6 +419,20 @@ class Parser:
 
         stmt.body = self.__parse_block_statement()
 
+        return stmt
+    
+    def __parse_import_statement(self) -> ImportStatement:
+
+        if not self.__expect_peek(TokenType.STRING):
+            return None
+        
+        # Create a StringLiteral for the module name
+        module_name = StringLiteral(value=self.current_token.literal)
+        stmt: ImportStatement = ImportStatement(module_name=module_name)
+
+        if self.__peek_token_is(TokenType.SEMICOLON):
+            self.__next_token()
+        
         return stmt
     # endregion statement methods
 
@@ -467,6 +507,23 @@ class Parser:
     # endregion expression methods
 
     # region prefix methods
+    def __parse_prefix_expression(self) -> PrefixExpression:
+        prefix_expr: PrefixExpression = PrefixExpression(operator=self.current_token.literal)
+
+        self.__next_token()
+
+        prefix_expr.right_node = self.__parse_expression(PrecedenceType.P_PREFIX)
+
+        return prefix_expr
+    
+    def __parse_postfix_expression(self, left_node: Expression) -> PostfixExpression:
+        postfix_expr: PostfixExpression = PostfixExpression(
+            left_node=left_node,
+            operator=self.current_token.literal
+        )
+
+        return postfix_expr
+
     def __parse_identifier(self) -> IdentifierLiteral:
         return IdentifierLiteral(value=self.current_token.literal)
 

@@ -1,14 +1,19 @@
 from llvmlite import ir
+import os
 
-from lime_ast import Node, NodeType, Program, Expression, Statement
+from lime_ast import Node, NodeType, Program, Expression, ImportStatement
 from lime_ast import ExpressionStatement, InfixExpression, LetStatement, CallExpression
 from lime_ast import FunctionStatement, ReturnStatement, BlockStatement, AssignStatement, IfStatement
 from lime_ast import IntegerLiteral, FloatLiteral, IdentifierLiteral, BooleanLiteral
 from lime_ast import FunctionParameter
 from lime_ast import StringLiteral
 from lime_ast import WhileStatement, BreakStatement, ContinueStatement, ForStatement
+from lime_ast import PrefixExpression, PostfixExpression
 
 from environment import Environment
+
+from lime_lexer import Lexer
+from lime_parser import Parser
 
 class Compiler:
     def __init__(self) -> None:
@@ -33,6 +38,9 @@ class Compiler:
         # keeps a reference to the compiling Loop blocks
         self.breakpoints: list[ir.Block] = []
         self.continues: list[ir.Block] = []
+
+        # keeps a reference to parsed pallets
+        self.global_parsed_pallets: dict[str, Program] = {}
 
 
     def __initialize_builtins(self) -> None:
@@ -104,12 +112,17 @@ class Compiler:
             case NodeType.ForStatement:
                 self.__visit_for_statement(node)
 
+            case NodeType.ImportStatement:
+                self.__visit_import_statement(node)
+
 
             # Expressions
             case NodeType.InfixExpression:
                 self.__visit_infix_expression(node)
             case NodeType.CallExpression:
                 self.__visit_call_expression(node)
+            case NodeType.PostfixExpression:
+                self.__visit_postfix_expression(node)
 
 # region visit methods
     def __visit_program(self, node: Program) -> None:
@@ -222,16 +235,57 @@ class Compiler:
 
     def __visit_assign_statement(self, node: AssignStatement) -> None:
         name: str = node.ident.value
+        operator: str = node.operator
         value: Expression = node.right_value
 
-        value, Type = self.__resolve_value(node = value)
 
         if self.env.lookup(name) is None:
             self.errors.append(f"COMPILE ERROR: Identifier {name} has not been declared before it was re-assigned.")
+            return
 
-        else:
-            ptr, _ = self.env.lookup(name)
-            self.builder.store(value, ptr)
+        right_value, right_type = self.__resolve_value(value)
+        var_ptr, _ = self.env.lookup(name)
+        orig_value = self.builder.load(var_ptr)
+
+        if isinstance(orig_value.type, ir.IntType) and isinstance(right_type, ir.FloatType):
+            orig_value = self.builder.sitofp(orig_value, ir.FloatType())
+
+        if isinstance(orig_value.type, ir.FloatType) and isinstance(right_type, ir.IntType):
+            right_value = self.builder.sitofp(right_value, ir.FloatType())
+
+        value = None
+        Type = None
+        match operator:
+            case "=":
+                value = right_value
+            case "+=":
+                if isinstance(orig_value.type, ir.IntType) and isinstance(right_type, ir.IntType):
+                    value = self.builder.add(orig_value, right_value)
+                else:
+                    value = self.builder.fadd(orig_value, right_value) 
+            case "-=":
+                if isinstance(orig_value.type, ir.IntType) and isinstance(right_type, ir.IntType):
+                    value = self.builder.sub(orig_value, right_value)
+                else:
+                    value = self.builder.fsub(orig_value, right_value)
+            case "*=":
+                if isinstance(orig_value.type, ir.IntType) and isinstance(right_type, ir.IntType):
+                    value = self.builder.mul(orig_value, right_value)
+                else:
+                    value = self.builder.fmul(orig_value, right_value)
+            case "/=":
+                if isinstance(orig_value.type, ir.IntType) and isinstance(right_type, ir.IntType):
+                    value = self.builder.sdiv(orig_value, right_value)
+                else:
+                    value = self.builder.fdiv(orig_value, right_value)
+            case _:
+                self.errors.append(f"COMPILE ERROR: Unsupported assignment operator {operator}")
+                return
+                
+        ptr, _ = self.env.lookup(name)
+        self.builder.store(value, ptr)
+
+            
 
     def __visit_if_statement(self, node: IfStatement) -> None:
         condition = node.condition
@@ -294,10 +348,10 @@ class Compiler:
         self.builder.branch(self.continues[-1])
 
     def __visit_for_statement(self, node: ForStatement) -> None:
-        # for (let i: int = 0; i < 10; i = i + 1) { ... }
+        # for (let i: int = 0; i < 10; i++) { ... }
         initializer: LetStatement = node.initializer
         condition: Expression = node.condition
-        increment: AssignStatement = node.increment
+        increment: Expression = node.increment
         body: BlockStatement = node.body
 
         previous_env = self.env
@@ -328,7 +382,8 @@ class Compiler:
 
         # Increment block (continue point)
         self.builder.position_at_start(for_loop_increment)
-        self.compile(increment)
+        # Evaluate the increment expression (like i++ or i += 1)
+        self.__resolve_value(increment)
         self.builder.branch(for_loop_condition)
 
         # End block
@@ -338,6 +393,62 @@ class Compiler:
         self.breakpoints.pop()
         self.continues.pop()
 
+    def __visit_import_statement(self, node: ImportStatement) -> None:
+        # Extract module name from string literal, removing quotes and .lime extension if present
+        module_name_raw: str = node.module_name.value
+        # Remove quotes if present
+        if module_name_raw.startswith('"') and module_name_raw.endswith('"'):
+            module_name_raw = module_name_raw[1:-1]
+        # Remove .lime extension if present
+        if module_name_raw.endswith('.lime'):
+            module_name = module_name_raw[:-5]
+        else:
+            module_name = module_name_raw
+
+        # Check if already imported
+        if module_name in self.global_parsed_pallets:
+            # Already parsed, just compile it again in current context
+            imported_program = self.global_parsed_pallets[module_name]
+        else:
+            # Try multiple possible file paths
+            possible_paths = [
+                os.path.join("tests", f"{module_name}.lime"),
+                os.path.join(".", f"{module_name}.lime"),
+                f"{module_name}.lime"
+            ]
+            
+            file_path = None
+            for path in possible_paths:
+                if os.path.isfile(path):
+                    file_path = path
+                    break
+            
+            if file_path is None:
+                self.errors.append(f"COMPILE ERROR: Cannot find module '{module_name}' in any of these locations: {possible_paths}")
+                return
+            
+            try:
+                with open(file_path, "r") as f:
+                    source_code: str = f.read()
+            except Exception as e:
+                self.errors.append(f"COMPILE ERROR: Failed to read module '{module_name}' from '{file_path}': {e}")
+                return
+
+            lexer = Lexer(source=source_code)
+            parser = Parser(lexer=lexer)
+            imported_program = parser.parse_program()
+
+            if len(parser.errors) > 0:
+                self.errors.append(f"COMPILE ERROR: Errors encountered while parsing module '{module_name}':")
+                for err in parser.errors:
+                    self.errors.append(f"\t{err}")
+                return
+            
+            # Cache the parsed program
+            self.global_parsed_pallets[module_name] = imported_program
+        
+        # Compile the imported program in the current environment
+        self.compile(imported_program)
     # end region statement visit methods
 
     # region expression visit methods
@@ -442,10 +553,75 @@ class Compiler:
                 ret = self.builder.call(func, args)
 
         return ret, ret_type
-    # end region expression visit methods
+    
+    def __visit_prefix_expression(self, node: PrefixExpression) -> tuple[ir.Value, ir.Type]:
+        operator: str = node.operator
+        right_node: Expression = node.right_node
+
+        right_value, right_type = self.__resolve_value(right_node)
+
+        Type = None
+        value = None
+        if isinstance(right_type, ir.FloatType):
+            Type = ir.FloatType()
+            match operator:
+                case "-":
+                    value = self.builder.fmul(right_value, ir.Constant(ir.FloatType(), -1.0))
+                case "!":
+                    value = ir.Constant(ir.IntType(1), 0)
+            
+        elif isinstance(right_type, ir.IntType):
+            Type = ir.IntType(32)
+            match operator:
+                case "-":
+                    value = self.builder.mul(right_value, ir.Constant(ir.IntType(32), -1))
+                case "!":
+                    value = self.builder.not_(right_value)    
+
+        return value, Type
+    
+    def __visit_postfix_expression(self, node: PostfixExpression) -> tuple[ir.Value, ir.Type]:
+        left_node: IdentifierLiteral = node.left_node
+        operator: str = node.operator
+
+        if self.env.lookup(left_node.value) is None:
+            self.errors.append(f"COMPILE ERROR: Identifier {left_node.value} has not been declared before it was used in a postfix expression.")
+            return None, None
+        
+        var_ptr, var_type = self.env.lookup(left_node.value)
+        orig_value = self.builder.load(var_ptr)
+
+        # For postfix operators, we return the original value before modification
+        result_value = orig_value
+
+        new_value = None
+        match operator:
+            case "++":
+                if isinstance(orig_value.type, ir.IntType):
+                    new_value = self.builder.add(orig_value, ir.Constant(ir.IntType(32), 1))
+                elif isinstance(orig_value.type, ir.FloatType):
+                    new_value = self.builder.fadd(orig_value, ir.Constant(ir.FloatType(), 1.0))
+                else:
+                    self.errors.append(f"COMPILE ERROR: Unsupported type for ++ operator on identifier {left_node.value}")
+                    return None, None
+            case "--":
+                if isinstance(orig_value.type, ir.IntType):
+                    new_value = self.builder.sub(orig_value, ir.Constant(ir.IntType(32), 1))
+                elif isinstance(orig_value.type, ir.FloatType):
+                    new_value = self.builder.fsub(orig_value, ir.Constant(ir.FloatType(), 1.0))
+                else:
+                    self.errors.append(f"COMPILE ERROR: Unsupported type for -- operator on identifier {left_node.value}")
+                    return None, None
+                
+        # Store the new value back to the variable
+        self.builder.store(new_value, var_ptr)
+        
+        # Return the original value (postfix semantics)
+        return result_value, var_type
+    # endregion expression visit methods
 
 
-# end region visit methods
+# endregion visit methods
 
     # region helper methods
     def __resolve_value(self, node: Expression) -> tuple[ir.Value, ir.Type]:
@@ -481,6 +657,10 @@ class Compiler:
                 return self.__visit_infix_expression(node) 
             case NodeType.CallExpression:
                 return self.__visit_call_expression(node)
+            case NodeType.PrefixExpression:
+                return self.__visit_prefix_expression(node)
+            case NodeType.PostfixExpression:
+                return self.__visit_postfix_expression(node)
 
 
     def __convert_string(self, string: str) -> tuple[ir.Constant, ir.ArrayType]:

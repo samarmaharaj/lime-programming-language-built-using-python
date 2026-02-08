@@ -22,6 +22,10 @@ class TokenType(Enum):
 
     # assignment operator
     EQ = "EQ"
+    PLUS_EQ = "PLUS_EQ"
+    MINUS_EQ = "MINUS_EQ"
+    MUL_EQ = "MUL_EQ"
+    DIV_EQ = "DIV_EQ"
 
     # comparison operators
     LT = "<"
@@ -41,6 +45,13 @@ class TokenType(Enum):
     LBRACE = "LBRACE"
     RBRACE = "RBRACE"
 
+    # prefix operators
+    BANG = "BANG"
+
+    # postfix operators
+    PLUS_PLUS = "PLUS_PLUS"
+    MINUS_MINUS = "MINUS_MINUS"
+
     #keywords
     LET = "LET"
     FN = "FN"
@@ -53,6 +64,7 @@ class TokenType(Enum):
     BREAK = "BREAK"
     CONTINUE = "CONTINUE"
     FOR = "FOR"
+    IMPORT = "IMPORT"
 
     # typing
     TYPE = "TYPE"
@@ -82,7 +94,8 @@ KEYWORDS: dict[str, TokenType] = {
     "while": TokenType.WHILE,
     "break": TokenType.BREAK,
     "continue": TokenType.CONTINUE,
-    "for": TokenType.FOR
+    "for": TokenType.FOR,
+    "import": TokenType.IMPORT
 }
 
 ALT_KEYWORDS: dict[str, TokenType] = {
@@ -97,7 +110,8 @@ ALT_KEYWORDS: dict[str, TokenType] = {
     "wee": TokenType.WHILE,
     "yeet": TokenType.BREAK,
     "anothaone": TokenType.CONTINUE,
-    "dab": TokenType.FOR
+    "dab": TokenType.FOR,
+    "importt": TokenType.IMPORT
 }
 
 TYPE_KEYWORDS: list[str] = ["int", "float", "str", "void"]

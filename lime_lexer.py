@@ -81,7 +81,18 @@ class Lexer:
 
         match self.current_char:
             case '+':
-                tok = self.__new_token(TokenType.PLUS, self.current_char)
+                if self.__peek_char() == '=':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.PLUS_EQ, literal)
+                elif self.__peek_char() == '+':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.PLUS_PLUS, literal)
+                else:
+                    tok = self.__new_token(TokenType.PLUS, self.current_char)
             case '-':
                 # handle ->
                 if self.__peek_char() == '>':
@@ -89,12 +100,34 @@ class Lexer:
                     self.__read_char()
                     literal = current_char + self.current_char
                     tok = self.__new_token(TokenType.ARROW, literal)
+                elif self.__peek_char() == '=':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.MINUS_EQ, literal)
+                elif self.__peek_char() == '-':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.MINUS_MINUS, literal)
                 else:
                     tok = self.__new_token(TokenType.MINUS, self.current_char)
             case '*':
-                tok = self.__new_token(TokenType.ASTERISK, self.current_char)
+                if self.__peek_char() == '=':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.MUL_EQ, literal)
+                else:
+                    tok = self.__new_token(TokenType.ASTERISK, self.current_char)
             case '/':
-                tok = self.__new_token(TokenType.SLASH, self.current_char)
+                if self.__peek_char() == '=':
+                    current_char = self.current_char
+                    self.__read_char()
+                    literal = current_char + self.current_char
+                    tok = self.__new_token(TokenType.DIV_EQ, literal)
+                else:
+                    tok = self.__new_token(TokenType.SLASH, self.current_char)
             case '^':
                 tok = self.__new_token(TokenType.POWER, self.current_char)
             case '%':
@@ -134,8 +167,7 @@ class Lexer:
                     literal = current_char + self.current_char
                     tok = self.__new_token(TokenType.NOT_EQ, literal)
                 else:
-                    # TODO: Implement BANG``
-                    tok = self.__new_token(TokenType.ILLEGAL, self.current_char)
+                    tok = self.__new_token(TokenType.BANG, self.current_char)
             case ':':
                 tok = self.__new_token(TokenType.COLON, self.current_char)
             case ',':
@@ -152,6 +184,17 @@ class Lexer:
                 tok = self.__new_token(TokenType.LBRACE, self.current_char)
             case '}':
                 tok = self.__new_token(TokenType.RBRACE, self.current_char)
+            case '.':
+                # Check for comments using "..."
+                if (self.__peek_char() == '.' and 
+                    self.read_position + 1 < len(self.source) and 
+                    self.source[self.read_position + 1] == '.'):
+                    # This is a comment, skip it and get next token
+                    self.__read_comment()
+                    return self.next_token()  # Recursively get the next non-comment token
+                else:
+                    # Single dot - treat as illegal for now (could be used for other purposes later)
+                    tok = self.__new_token(TokenType.ILLEGAL, self.current_char)
             case None:
                 tok = self.__new_token(TokenType.EOF, "")
             case _:
@@ -178,3 +221,28 @@ class Lexer:
                 break
 
         return self.source[position:self.position]
+    
+    def __read_comment(self) -> None:
+        """Reads and skips a comment that starts and ends with '...'"""
+        # We're currently at the first '.', skip the first "..."
+        self.__read_char()  # skip second '.'
+        self.__read_char()  # skip third '.'
+        
+        # Now read until we find the closing "..."
+        while self.current_char is not None:
+            if (self.current_char == '.' and 
+                self.__peek_char() == '.' and 
+                self.read_position + 1 < len(self.source) and 
+                self.source[self.read_position + 1] == '.'):
+                # Found closing "...", skip all three dots
+                self.__read_char()  # skip first '.'
+                self.__read_char()  # skip second '.'
+                self.__read_char()  # skip third '.'
+                return
+            
+            if self.current_char == '\n':
+                self.line += 1
+            self.__read_char()
+        
+        # If we reach here, comment was not closed (EOF reached)
+        # This is acceptable - treat as comment to end of file

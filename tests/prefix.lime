@@ -1,0 +1,22 @@
+fn main() -> int {
+    let a: int = -10;
+
+    for (let i: int = 0; i < 10; i += 1) {
+        if (i == 2) {
+            continue;
+        }
+
+        if (i == 5) {
+            break;
+        }
+
+        if (!false) {
+            printf("not false so be true :-D ");
+        }
+
+        printf("i = %i\n", i);
+        a = i;
+    }
+
+    return a;
+}

@@ -16,10 +16,13 @@ class NodeType(Enum):
     BreakStatement = "BreakStatement"
     ContinueStatement = "ContinueStatement"
     ForStatement = "ForStatement"
+    ImportStatement = "ImportStatement"
 
     #expressions
     InfixExpression = "InfixExpression"
     CallExpression = "CallExpression"
+    PrefixExpression = "PrefixExpression"
+    PostfixExpression = "PostfixExpression"
 
     #Literals
     IntegerLiteral = "IntegerLiteral"
@@ -153,8 +156,9 @@ class FunctionStatement(Statement):
         }
     
 class AssignStatement(Statement):
-    def __init__(self,  ident: Expression = None, right_value: Expression = None) -> None:
+    def __init__(self,  ident: Expression = None, operator: str = None, right_value: Expression = None) -> None:
         self.ident = ident
+        self.operator = operator
         self.right_value = right_value
 
     def type(self) -> NodeType:
@@ -209,7 +213,7 @@ class ContinueStatement(Statement):
         }
     
 class ForStatement(Statement):
-    def __init__(self, initializer: LetStatement = None, condition: Expression = None, increment: AssignStatement = None, body: BlockStatement = None) -> None:
+    def __init__(self, initializer: LetStatement = None, condition: Expression = None, increment: Expression = None, body: BlockStatement = None) -> None:
         self.initializer = initializer
         self.condition = condition
         self.increment = increment
@@ -226,6 +230,19 @@ class ForStatement(Statement):
             "increment": self.increment.json(),
             "body": self.body.json()
         }
+    
+class ImportStatement(Statement):
+    def __init__(self, module_name: Expression = None) -> None:
+        self.module_name = module_name
+
+    def type(self) -> NodeType:
+        return NodeType.ImportStatement
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "module_name": self.module_name.json() if self.module_name else None
+        }
 class WhileStatement(Statement):
     def __init__(self, condition: Expression, body: BlockStatement = None) -> None:
         self.condition = condition
@@ -240,7 +257,7 @@ class WhileStatement(Statement):
             "condition": self.condition.json(),
             "body": self.body.json()
         }
-# end region statements
+# endregion statements
 
 # region expressions
 class InfixExpression(Expression):
@@ -274,7 +291,37 @@ class CallExpression(Expression):
             "function": self.function.json(),
             "arguments": [arg.json() for arg in self.arguments]
         }
-# end region expressions
+    
+class PrefixExpression(Expression):
+    def __init__(self, operator: str, right_node: Expression = None) -> None:
+        self.operator = operator
+        self.right_node = right_node
+
+    def type(self) -> NodeType:
+        return NodeType.PrefixExpression
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "operator": self.operator,
+            "right_node": self.right_node.json()
+        }
+    
+class PostfixExpression(Expression):
+    def __init__(self, left_node: Expression = None, operator: str = None) -> None:
+        self.operator = operator
+        self.left_node = left_node
+
+    def type(self) -> NodeType:
+        return NodeType.PostfixExpression
+    
+    def json(self) -> dict:
+        return {
+            "type": self.type().value,
+            "operator": self.operator,
+            "left_node": self.left_node.json()
+        }
+# endregion expressions
 
 # region literals
 class IntegerLiteral(Expression):
@@ -341,4 +388,4 @@ class StringLiteral(Expression):
             "type": self.type().value,
             "value": self.value
         }
-# end region literals
+# endregion literals
